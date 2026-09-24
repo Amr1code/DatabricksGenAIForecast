@@ -1,0 +1,33 @@
+# Forecasting
+prophet==1.1.5
+statsmodels==0.14.2
+
+# Machine learning
+xgboost==2.1.1
+scikit-learn==1.5.1
+
+# GenAI
+openai==1.51.0
+
+# Standalone agent app (runs outside Databricks)
+streamlit==1.38.0
+databricks-sql-connector==3.4.0
+python-dotenv==1.0.1
+
+# Data handling
+pandas==2.2.2
+numpy==1.26.4
+requests==2.32.3
+
+# Visualization
+matplotlib==3.9.2
+
+# Notes:
+# - pyspark, delta-lake, and mlflow are pre-installed in the Databricks
+#   Free Edition notebook runtime and are NOT needed locally.
+# - Inside Databricks notebooks, install packages with:
+#     %pip install <package>==<version>
+# - To run app.py (the standalone Streamlit agent) locally:
+#     pip install -r requirements.txt
+#     cp .env.example .env   # then fill in your real credentials
+#     streamlit run app.py

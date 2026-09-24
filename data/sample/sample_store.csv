@@ -1,0 +1,16 @@
+Store,StoreType,Assortment,CompetitionDistance,CompetitionOpenSinceMonth,CompetitionOpenSinceYear,Promo2,Promo2SinceWeek,Promo2SinceYear,PromoInterval
+1,c,a,1270,9.0,2008.0,0,,,
+2,a,a,570,11.0,2007.0,1,13.0,2010.0,"Jan,Apr,Jul,Oct"
+3,a,a,14130,12.0,2006.0,1,14.0,2011.0,"Jan,Apr,Jul,Oct"
+4,c,c,620,9.0,2009.0,0,,,
+5,a,a,29910,4.0,2015.0,0,,,
+6,a,a,310,12.0,2013.0,0,,,
+7,a,c,24000,4.0,2013.0,0,,,
+8,a,a,7520,10.0,2014.0,0,,,
+9,a,c,2030,8.0,2000.0,0,,,
+10,a,a,3160,9.0,2009.0,0,,,
+11,a,c,960,11.0,2011.0,1,1.0,2012.0,"Jan,Apr,Jul,Oct"
+12,a,c,1070,,,1,13.0,2010.0,"Jan,Apr,Jul,Oct"
+13,d,a,310,,,1,45.0,2009.0,"Feb,May,Aug,Nov"
+14,a,a,1300,3.0,2014.0,1,40.0,2011.0,"Jan,Apr,Jul,Oct"
+15,d,c,4110,3.0,2010.0,1,14.0,2011.0,"Jan,Apr,Jul,Oct"
