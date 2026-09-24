@@ -2,7 +2,7 @@
 
 An end-to-end lakehouse pipeline built on **Databricks Free Edition** that ingests multi-source retail data, forecasts demand using multiple modeling approaches, tracks experiments with MLflow, and lets users ask natural language questions about sales performance via a GenAI agent.
 
-Built as a demonstration project covering data engineering, forecasting, machine learning, MLOps, and generative AI integration on the Databricks Lakehouse Platform.
+Built as a demonstration project covering data engineering, forecasting, machine learning, MLOps, and generative AI integration on the Databricks Lakehouse Platform
 
 ---
 
