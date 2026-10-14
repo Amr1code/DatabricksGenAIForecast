@@ -1,0 +1,21 @@
+# Provisions the Postgres data source that holds the monitoring tables.
+# The ${...} values are read from the grafana service's environment in
+# docker-compose.yml, so credentials are defined in one place only.
+apiVersion: 1
+
+datasources:
+  - name: Monitoring Postgres
+    uid: monitoring-postgres          # referenced by the dashboard JSON and alert rule
+    type: grafana-postgresql-datasource
+    access: proxy
+    url: postgres:5432                # service name from docker-compose.yml
+    user: ${POSTGRES_USER}
+    isDefault: true
+    editable: false
+    jsonData:
+      database: ${POSTGRES_DB}
+      sslmode: disable                # local container, no TLS
+      postgresVersion: 1600           # Postgres 16
+      timescaledb: false
+    secureJsonData:
+      password: ${POSTGRES_PASSWORD}

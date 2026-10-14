@@ -1,0 +1,66 @@
+# Unified alerting rule: fires when the latest run of a model has drift_flag = true.
+# One alert instance per model (the model_type column becomes the "model_type" label).
+# See it under Alerting > Alert rules in Grafana. No contact point is provisioned,
+# so notifications go to Grafana's default one; the alert state is visible in the UI.
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: model-drift
+    folder: Model Monitoring
+    interval: 1m
+    rules:
+      - uid: model-drift-detected
+        title: Model drift detected
+        condition: C
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: critical
+        annotations:
+          summary: "Drift detected for {{ $labels.model_type }}"
+          description: "The latest {{ $labels.model_type }} run has drift_flag = true (MAPE rose above the drift threshold vs. its best earlier run)."
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: monitoring-postgres
+            model:
+              refId: A
+              datasource:
+                type: grafana-postgresql-datasource
+                uid: monitoring-postgres
+              format: table
+              rawQuery: true
+              editorMode: code
+              rawSql: |
+                SELECT DISTINCT ON (model_type)
+                       model_type,
+                       CASE WHEN drift_flag THEN 1 ELSE 0 END AS drifted
+                FROM model_drift_status
+                ORDER BY model_type, run_timestamp DESC
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+              datasource:
+                type: __expr__
+                uid: __expr__
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              datasource:
+                type: __expr__
+                uid: __expr__

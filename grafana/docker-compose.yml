@@ -1,0 +1,78 @@
+# Model monitoring stack: Postgres + CSV loader + Grafana
+#
+# Usage (from the grafana/ folder):
+#   1. Put model_metrics_history.csv and model_drift_status.csv in ./data/
+#   2. docker compose up
+#   3. Open http://localhost:3000  (login: admin / admin, unless overridden)
+#
+# To refresh the dashboard after re-running the notebook: replace the CSVs and run
+#   docker compose run --rm loader
+#
+# Credentials below are local-demo defaults. Override any of them by creating
+# a .env file next to this one (it is gitignored).
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: monitoring-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-monitor}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-monitor}
+      POSTGRES_DB: ${POSTGRES_DB:-monitoring}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  # One-shot job: creates the tables and loads the CSVs, then exits.
+  loader:
+    image: python:3.12-slim
+    container_name: monitoring-loader
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_USER:-monitor}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-monitor}
+      PGDATABASE: ${POSTGRES_DB:-monitoring}
+      DATA_DIR: /data
+    volumes:
+      - ./data:/data:ro
+      - ./load_data.py:/app/load_data.py:ro
+    working_dir: /app
+    command: sh -c "pip install --no-cache-dir --quiet psycopg2-binary && python load_data.py"
+    restart: "no"
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: monitoring-grafana
+    depends_on:
+      postgres:
+        condition: service_healthy
+      loader:
+        condition: service_completed_successfully
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      # Read by provisioning/datasources/postgres.yml
+      POSTGRES_USER: ${POSTGRES_USER:-monitor}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-monitor}
+      POSTGRES_DB: ${POSTGRES_DB:-monitoring}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./provisioning:/etc/grafana/provisioning:ro
+      - ./dashboards:/etc/grafana/dashboards:ro
+
+volumes:
+  pgdata:
+  grafana-data:

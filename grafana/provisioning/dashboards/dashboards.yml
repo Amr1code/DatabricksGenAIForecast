@@ -1,0 +1,14 @@
+# Tells Grafana to load every dashboard JSON file found in /etc/grafana/dashboards
+# (the ./dashboards folder mounted by docker-compose.yml).
+apiVersion: 1
+
+providers:
+  - name: model-monitoring
+    orgId: 1
+    folder: Model Monitoring
+    type: file
+    disableDeletion: false
+    allowUiUpdates: true              # lets you tweak panels in the UI while developing
+    updateIntervalSeconds: 30         # picks up edits to the JSON file automatically
+    options:
+      path: /etc/grafana/dashboards
