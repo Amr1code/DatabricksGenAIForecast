@@ -66,6 +66,7 @@ Raw Sources (CSV + Weather API)
 | GenAI | OpenAI API (`gpt-4o-mini`), function-calling / tool use |
 | External Data | Open-Meteo Historical Weather API |
 | Visualization | Databricks SQL Dashboards, Matplotlib |
+| Monitoring | MLflow run history, Delta tables, Grafana, PostgreSQL, Docker Compose |
 | Version Control | Git, GitHub (via Databricks Git folders) |
 | Secrets Management | Databricks Secret Scopes (`dbutils.secrets`) |
 
@@ -87,10 +88,22 @@ retail-demand-genai-forecast/
 │   ├── 03_feature_gold.ipynb           # Lags, rolling averages, encoding
 │   ├── 04_forecast_prophet_arima.ipynb # Prophet forecasting + MLflow logging
 │   ├── 05_ml_model.ipynb               # XGBoost model + Model Registry
-│   └── 06_genai_agent.ipynb            # OpenAI function-calling agent (in-Databricks)
+│   ├── 06_genai_agent.ipynb            # OpenAI function-calling agent (in-Databricks)
+│   └── 07_model_monitoring.ipynb       # Metrics history, drift detection, drift simulation, CSV export
 │
 ├── src/
 │   └── agent.py                        # Standalone agent logic (used by app.py)
+│
+├── grafana/                            # Model monitoring dashboard (runs locally)
+│   ├── docker-compose.yml              # Grafana + Postgres + CSV loader
+│   ├── load_data.py                    # Loads the exported CSVs into Postgres
+│   ├── data/                           # model_metrics_history.csv, model_drift_status.csv (not committed)
+│   ├── dashboards/
+│   │   └── model_monitoring.json       # 4-panel dashboard with a model filter
+│   └── provisioning/
+│       ├── datasources/postgres.yml    # Postgres data source
+│       ├── dashboards/dashboards.yml   # Dashboard loader
+│       └── alerting/drift-alert.yml    # Alert rule: fires when drift_flag is true
 │
 ├── data/
 │   └── sample/
@@ -104,7 +117,9 @@ retail-demand-genai-forecast/
         ├── model_registry_xgboost.png
         ├── prophet_actual_vs_predicted_store1.png
         ├── genai_agent_example.png
-        └── sql_dashboard.png
+        ├── sql_dashboard.png
+        ├── grafana_dashboard.png
+        └── grafana_alert.png
 ```
 
 ---
@@ -231,6 +246,39 @@ A Databricks SQL Dashboard visualizes key metrics from the Gold layer:
 
 ---
 
+## Model Monitoring
+
+`07_model_monitoring.ipynb` adds lightweight monitoring on top of the MLflow runs, with a Grafana dashboard to visualize it.
+
+**What the notebook does:**
+- Syncs every run in the MLflow experiment into `retail_project.gold.model_metrics_history` (MAPE, RMSE, timestamp, model type), using `MERGE` so re-running never creates duplicates.
+- Compares each run to the best earlier run of the same model type and writes `retail_project.gold.model_drift_status`. A run is flagged (`drift_flag = true`) when its MAPE is more than **15% worse** than that baseline (relative change, configurable via `DRIFT_THRESHOLD`).
+- Simulates drift by adding noise to the lag and rolling-average features, scoring the champion XGBoost model on that data, and logging it as a new MLflow run tagged `simulated_drift=true`. Its MAPE rose from 10.4% to 29.9%, so it is flagged.
+- Exports both tables as CSV to a Unity Catalog Volume.
+
+**Why CSV and Postgres?** Databricks Free Edition does not allow connections from external tools, so the two tables are exported as CSV and loaded into a local Postgres that Grafana reads from.
+
+![Grafana model monitoring dashboard](docs/images/grafana_dashboard.png)
+
+The dashboard has four panels plus a `model` filter: MAPE over time (Prophet vs XGBoost), baseline vs current MAPE, current drift status per model (✓ OK / ⚠ DRIFT), and a count of drift events. A provisioned alert rule fires when a model's latest run has `drift_flag = true`.
+
+![Grafana drift alert firing](docs/images/grafana_alert.png)
+
+**To run it locally** (requires [Docker Desktop](https://www.docker.com/products/docker-desktop/)):
+
+1. Run `07_model_monitoring.ipynb` in Databricks and download `model_metrics_history.csv` and `model_drift_status.csv` from the `monitoring_exports` volume.
+2. Put both files in `grafana/data/`. (CSVs are gitignored, so they are not in the repo.)
+3. Start the stack:
+   ```bash
+   cd grafana
+   docker compose up
+   ```
+4. Open http://localhost:3000 (login `admin` / `admin`) and go to **Dashboards → Model Monitoring**. Alert rules are under **Alerting → Alert rules**.
+
+To refresh after re-running the notebook, replace the CSVs and run `docker compose run --rm loader`. Stop everything with `docker compose down`. Credentials are local-demo defaults and can be overridden in a `grafana/.env` file.
+
+---
+
 ## Key Engineering Decisions & Findings
 
 - **Data leakage prevention:** `Customers` excluded from features (only known after the fact); rolling averages exclude the current day.
@@ -250,10 +298,11 @@ A Databricks SQL Dashboard visualizes key metrics from the Gold layer:
    databricks secrets create-scope my-project-secrets
    databricks secrets put-secret my-project-secrets openai-api-key
    ```
-4. Run notebooks `01` through `06` in order (each writes to Delta tables consumed by the next).
+4. Run notebooks `01` through `07` in order (each writes to Delta tables consumed by the next).
 5. View the MLflow experiment comparison under **Experiments**, and the registered model under **Catalog → retail_project → gold → Models**.
 6. View the dashboard under **Dashboards → Retail Demand Forecasting Dashboard**.
-7. *(Optional)* Test the agent outside Databricks: install `requirements.txt` locally, copy `.env.example` to `.env` with your credentials, and run `streamlit run app.py`.
+7. *(Optional)* View the monitoring dashboard locally: see [Model Monitoring](#model-monitoring).
+8. *(Optional)* Test the agent outside Databricks: install `requirements.txt` locally, copy `.env.example` to `.env` with your credentials, and run `streamlit run app.py`.
 
 ---
 
@@ -276,7 +325,7 @@ or a public mirror to obtain the complete data.
 
 - Add ARIMA as an additional forecasting baseline for comparison.
 - Source future weather *forecasts* (not historical actuals) to enable genuinely future-looking predictions with the regressor-enhanced Prophet model.
-- Deploy the GenAI agent behind a lightweight UI (e.g., Streamlit) for interactive, non-technical stakeholder use.
+- Replace the manual CSV export with a scheduled Databricks Workflow that refreshes the monitoring tables, and connect Grafana directly to Databricks SQL on a paid plan.
 - Configure Databricks Workflows for scheduled, automated pipeline runs and model retraining.
 - Extend the GenAI agent with additional tools (e.g., direct model inference calls to the registered XGBoost model via Model Serving).
 
